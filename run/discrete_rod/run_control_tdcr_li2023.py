@@ -138,12 +138,12 @@ if __name__ == "__main__":
     la_arc0 = 0.1
     # dynamic solver
     t_sim = 25
-    dt_sim = 1e-3
+    dt_sim = 0.02
     max_step = np.inf
     rtol = 1.0e-3
     atol = 1.0e-6
     # controller
-    Kp = 2
+    Kp = 10
     t_traj_trans = 2
     t_traj_hold = 5 - t_traj_trans
     dt_jacobian = 1e-2
@@ -229,7 +229,7 @@ if __name__ == "__main__":
         g_accel=G_ACCEL,
         damping_ratio=damping_ratio,
         statics=False,
-        controller=True,
+        controller="InverseStatics",
     )
     system_dyn = ret["system"]
     rod_dyn = ret["rod"]
@@ -266,6 +266,7 @@ if __name__ == "__main__":
     # prof.disable()
     # prof.dump_stats("run_control_tdcr_li2023.prof")
 
+    # system_dyn.export("vtk", f"li2023_Kp_{Kp}", sol, fps=50)
     # ---- visualization ----
     t, q, u = sol.t, sol.q, sol.u
     la_t = np.array([system_dyn.la_tau(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])

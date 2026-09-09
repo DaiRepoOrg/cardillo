@@ -11,7 +11,10 @@ from cardillo.visualization.vtk_render2 import RuntimeVisualBase
 
 
 class RodTendonExport(RuntimeVisualBase):
-    def __init__(self, n_vert, tube_radius=1e-3, color=(0, 200, 50), opacity=1):
+    def __init__(
+        self, n_vert, tube_radius=1e-3, name="tendon", color=(0, 200, 50), opacity=1
+    ):
+        self.name = name
         self._color = color
         self._opacity = opacity
         self._tube_radius = tube_radius
@@ -65,8 +68,16 @@ class RodTendonExport(RuntimeVisualBase):
 
 
 class RodTendonKinematics(RodTendonExport):
-    def __init__(self, rod: DiscreteRod, xis, B_r_CPs=None, **kwargs) -> None:
-        super().__init__(len(xis), **kwargs)
+    def __init__(
+        self,
+        rod: DiscreteRod,
+        xis,
+        B_r_CPs=None,
+        name="tendon",
+        color=(0, 200, 50),
+        **kwargs
+    ) -> None:
+        super().__init__(len(xis), name=name, color=color, **kwargs)
         self.rod = rod
         self.xis = xis
         self.n_vert = len(xis)
@@ -194,8 +205,7 @@ class RodTendonForce(RodTendonKinematics):
     def __init__(
         self, rod: DiscreteRod, xis, B_r_CPs=None, name="tendon", color=(0, 200, 50)
     ) -> None:
-        self.name = name
-        super().__init__(rod, xis, B_r_CPs=B_r_CPs, color=color)
+        super().__init__(rod, xis, B_r_CPs=B_r_CPs, name=name, color=color)
 
         self.nla_tau = 1
 
@@ -222,7 +232,7 @@ class RodTendonForceIntegrator(RodTendonKinematics):
         self, rod: DiscreteRod, xis, B_r_CPs=None, name="tendon", color=(0, 200, 50)
     ) -> None:
         raise NotImplementedError
-        super().__init__(rod, xis, B_r_CPs, name, color)
+        super().__init__(rod, xis, B_r_CPs=B_r_CPs, name=name, color=color)
         self.nla_tau = 1
         self.nq = 1
         self.q0 = np.zeros(1)

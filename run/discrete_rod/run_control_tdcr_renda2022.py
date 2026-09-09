@@ -100,17 +100,17 @@ if __name__ == "__main__":
     la_t_stat = np.array([0, 0, 0, 0, 0, 0])
     # static solver
     n_load_steps = 10
-    solver_stat = "riks"
+    solver_stat = "newton"
     la_arc0 = 0.1
     # dynamic solver
-    dt_sim = 1e-3
+    dt_sim = 1 / 50
     max_step = np.inf
     rtol = 1.0e-3
     atol = 1.0e-6
     # controller
     Kp_r = 0.8
     Kp_p = 180 / np.pi * 1e-3 * 100
-    feedforward = False
+    feedforward = True
     t_circle = 20
     t_spiral = 20
     dt_jacobian = 1e-2
@@ -210,7 +210,7 @@ if __name__ == "__main__":
     )
 
     sol = solver.solve()
-
+    system_dyn.export("vtk", "renda2022", sol, fps=50)
     # ---- visualization ----
     t, q, u = sol.t, sol.q, sol.u
     la_t = np.array([system_dyn.la_tau(ti, qi, ui) for ti, qi, ui in zip(t, q, u)])

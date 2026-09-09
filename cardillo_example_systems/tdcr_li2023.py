@@ -15,7 +15,94 @@ from cardillo.utility.coo_matrix import CooMatrix
 import numpy as np
 
 
-class Controller:
+class ControllerFeedbackLinearization:
+    def __init__(
+        self,
+        rod,
+        tendons: list[RodTendonKinematics],
+        Kd=0.0,
+        Kp=0.0,
+        name="controller",
+    ) -> None:
+        self.rod = rod
+        self.tendons = tendons
+        self.name = name
+        self.nla_tau = len(tendons)
+        self.ntau = 3 * 3
+
+        self.Kd = Kd
+        self.Kp = Kp
+        self.dla_t_dbeta = np.zeros((self.nla_tau, 3))
+        self.la_t_comp = np.zeros(self.nla_tau, dtype=np.float64)
+
+    def W_tau(self, t, q):
+        W_tau = CooMatrix((self._nu, self._nq))
+        for i, td, qDOF, uDOF in zip(
+            range(self.nla_tau), self.tendons, self._td_qDOF, self._td_uDOF
+        ):
+            W_tau[i, uDOF, i] = td.W_t(q[qDOF])
+        return W_tau
+
+    def Wla_tau_q(self, t, q, u):
+        coo = CooMatrix((self._nu, self._nq))
+        for i, td, la_tau, qDOF, uDOF in zip(
+            range(self.nla_tau),
+            self.tendons,
+            self.la_tau(t, q, u),
+            self._td_qDOF,
+            self._td_uDOF,
+        ):
+            q_td = q[qDOF]
+            W_t_q = td.W_t_q(q_td)
+            coo[2 * i, uDOF, qDOF] = W_t_q * la_tau
+            coo[2 * i + 1, uDOF, -7:-4] = (
+                td.W_t(q[qDOF])[:, None] @ self.dla_t_dbeta[None, i] * (-self.Kp)
+            )
+        return coo
+
+    def Wla_tau_u(self, t, q, u):
+        coo = CooMatrix((self._nu, self._nu))
+        for i, td, qDOF, uDOF in zip(
+            range(self.nla_tau),
+            self.tendons,
+            self._td_qDOF,
+            self._td_uDOF,
+        ):
+            coo[i, uDOF, -6:-3] = (
+                td.W_t(q[qDOF])[:, None] @ self.dla_t_dbeta[None, i] * (-self.Kd)
+            )
+        return coo
+
+    def tau(self, t):
+        return np.zeros(self.ntau, dtype=np.float64)
+
+    def la_tau(self, t, q, u):
+        ref_traj = self.tau(t)
+        r_OP = q[-7:-4]
+        v_P = u[-6:-3]
+        r_OP_des, v_P_des, a_P_des = ref_traj[:3], ref_traj[3:6], ref_traj[6:9]
+        beta = a_P_des + self.Kd * (v_P_des - v_P) + self.Kp * (r_OP_des - r_OP)
+        return self.la_t_comp + self.dla_t_dbeta @ beta
+
+    def assembler_callback(self):
+        qDOF = self.rod.qDOF
+        uDOF = self.rod.uDOF
+
+        self._td_qDOF = []
+        self._td_uDOF = []
+        for td in self.tendons:
+            assert min(qDOF) <= min(td.qDOF) and max(qDOF) >= max(td.qDOF)
+            self._td_qDOF.append(np.searchsorted(qDOF, td.qDOF))
+            assert min(uDOF) <= min(td.uDOF) and max(uDOF) >= max(td.uDOF)
+            self._td_uDOF.append(np.searchsorted(uDOF, td.uDOF))
+
+        self.qDOF = qDOF
+        self.uDOF = uDOF
+        self._nq = len(self.qDOF)
+        self._nu = len(self.uDOF)
+
+
+class ControllerInverseStatics:
     def __init__(
         self,
         rod,
@@ -97,7 +184,7 @@ class Controller:
 
 
 def gen_tdcr_li2023(
-    rod_nelement=10, g_accel=9.81, damping_ratio=0, statics=True, controller=False
+    rod_nelement=10, g_accel=9.81, damping_ratio=0, statics=True, controller=None
 ):
     # ---- pysical parameters ----
     rod_l0 = 0.192  # [m] length of rod
@@ -206,8 +293,11 @@ def gen_tdcr_li2023(
     system.add(rod, rc, *tendons)
 
     # --- controller ---
-    if controller:
-        controller = Controller(rod, tendons)
+    if controller == "InverseStatics":
+        controller = ControllerInverseStatics(rod, tendons)
+        system.add(controller)
+    elif controller == "FeedbackLinearization":
+        controller = ControllerFeedbackLinearization(rod, tendons)
         system.add(controller)
     system.assemble()
 
